@@ -110,10 +110,11 @@ Here is a glimpse of the SafeDrop user interface.
 
 **Login Screen**
 <br>
-https://github.com/chinanuj/SafeDrop/blob/5c59d3dafeb3ed6291e95abc4a9396cf029e69ac/docs/images/login_screenshot.png
+![SafeDrop Login Screen](docs/images/login_screenshot.png)
+
 **Secure Chat & File Drop**
 <br>
-https://github.com/chinanuj/SafeDrop/blob/5c59d3dafeb3ed6291e95abc4a9396cf029e69ac/docs/images/chat_screenshot.png
+![SafeDrop Chat Interface](docs/images/chat_screenshot.png)
 
 ## 🛡️ Security Protocol (V3)
 
