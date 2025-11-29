@@ -23,9 +23,6 @@ __pycache__/
 me2.jpeg
 me2_restored.jpeg
 test_copy.jpeg
-*.png
-*.jpg
-*.pdf
 
 # OS Files
 .DS_Store
