@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeDrop | Secure Enclave</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00f0ff; --primary-dim: #00a8b3;
+            --accent: #7000ff; --danger: #ff003c;
+            --glass-sidebar: rgba(5, 5, 10, 0.7);
+            --glass-chat: rgba(0, 0, 0, 0.5);
+            --glass-input: rgba(10, 10, 15, 0.85);
+            --border: 1px solid rgba(255, 255, 255, 0.06);
+            --text-main: #ffffff; --text-muted: #94a3b8;
+        }
+        * { box-sizing: border-box; outline: none; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background-color: #000; color: var(--text-main); height: 100vh; overflow: hidden; display: flex; }
+
+        .bg-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; z-index: -1; transition: opacity 1.2s ease-in-out; }
+        .bg-layer::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.70); backdrop-filter: blur(4px); } /* Darker & Blurrier */
+        @keyframes pulseBg { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
+        .animate-bg { animation: pulseBg 60s infinite ease-in-out; }
+        #bg-login { background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop'); opacity: 1; }
+        #bg-chat { background-image: url('https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=2670&auto=format&fit=crop'); opacity: 0; }
+
+        .hidden { display: none !important; }
+        .btn { background: var(--primary); color: #000; border: none; padding: 12px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-weight: 700; cursor: pointer; transition: 0.2s; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 0 15px rgba(0, 240, 255, 0.15); }
+        .btn:hover { background: #fff; box-shadow: 0 0 25px rgba(0, 240, 255, 0.5); transform: translateY(-1px); }
+
+        #auth-overlay { position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; z-index: 50; backdrop-filter: blur(10px); transition: opacity 0.5s; }
+        .auth-card { background: rgba(10, 10, 12, 0.8); backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.1); padding: 50px 40px; width: 400px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8); text-align: center; border-radius: 8px; }
+        .auth-card h2 { font-family: 'JetBrains Mono', monospace; color: white; font-size: 24px; margin-bottom: 5px; letter-spacing: -1px; }
+        input, select { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 14px; color: white; margin-bottom: 15px; font-family: 'Inter', sans-serif; font-size: 13px; transition: 0.3s; border-radius: 6px; }
+        input:focus, select:focus { border-color: var(--primary); background: rgba(0, 240, 255, 0.02); }
+
+        #dashboard { display: none; width: 100%; height: 100%; opacity: 0; transition: opacity 0.8s; z-index: 10; }
+        .sidebar { width: 260px; background: var(--glass-sidebar); backdrop-filter: blur(30px); border-right: var(--border); display: flex; flex-direction: column; }
+        .sidebar-header { padding: 30px; border-bottom: var(--border); font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-muted); letter-spacing: 2px; display: flex; align-items: center; gap: 10px; }
+        .user-list { flex: 1; padding: 15px; overflow-y: auto; }
+        .user-row { padding: 14px; margin-bottom: 5px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--text-muted); transition: 0.2s; border-radius: 6px; font-size: 13px; }
+        .user-row:hover { background: rgba(255,255,255,0.05); color: white; }
+        .user-row.active { background: rgba(0, 240, 255, 0.05); color: white; border: 1px solid rgba(0, 240, 255, 0.2); }
+        .avatar { width: 32px; height: 32px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); }
+
+        .chat-area { flex: 1; display: flex; flex-direction: column; background: var(--glass-chat); position: relative; }
+        
+        .chat-header { height: 70px; border-bottom: var(--border); background: rgba(0, 0, 0, 0.2); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; }
+        .header-inner { width: 100%; max-width: 750px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+
+        .messages { flex: 1; overflow-y: auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 20px; align-items: center; }
+        .msg-row { display: flex; width: 100%; max-width: 750px; opacity: 0; animation: slideIn 0.3s forwards; }
+        @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .msg-row.sent { justify-content: flex-end; }
+        
+        .msg-bubble { max-width: 65%; padding: 12px 18px; font-size: 14px; line-height: 1.6; position: relative; }
+        .msg-row.sent .msg-bubble { background: var(--primary); color: #000; border-radius: 18px 18px 2px 18px; font-weight: 600; }
+        .msg-row.recv .msg-bubble { background: rgba(40, 40, 45, 0.9); border: 1px solid rgba(255,255,255,0.1); color: #f1f5f9; border-radius: 18px 18px 18px 2px; }
+
+        .file-card { display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; margin-top: 8px; cursor: pointer; border: 1px solid rgba(0,0,0,0.1); transition: 0.2s; }
+        .file-card:hover { background: rgba(0,0,0,0.4); border-color: var(--primary); }
+
+        .input-bar { padding: 25px 0; border-top: var(--border); background: var(--glass-input); backdrop-filter: blur(25px); display: flex; justify-content: center; }
+        .input-inner { width: 100%; max-width: 750px; display: flex; gap: 15px; align-items: flex-end; padding: 0 20px; }
+        
+        #file-badge { background: rgba(0, 240, 255, 0.1); border: 1px solid var(--primary); color: var(--primary); padding: 4px 10px; border-radius: 20px; font-size: 11px; font-family: 'JetBrains Mono'; display: none; align-items: center; gap: 8px; margin-bottom: 8px; width: fit-content; }
+        .remove-file { cursor: pointer; font-weight: bold; opacity: 0.7;}
+        .remove-file:hover { opacity: 1; }
+
+        .input-wrapper { flex: 1; display: flex; flex-direction: column; }
+        .icon-btn { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(255,255,255,0.05); color: var(--text-muted); cursor: pointer; transition: 0.2s; min-width: 40px;}
+        .icon-btn:hover { color: white; background: rgba(255,255,255,0.1); }
+        
+        #burn-select {
+            background: rgba(0,0,0,0.6); border: 1px solid var(--primary); color: var(--primary);
+            font-family: 'JetBrains Mono'; font-size: 11px; padding: 6px; border-radius: 4px;
+            margin-bottom: 0; width: auto; cursor: pointer; transition: 0.2s;
+        }
+        #burn-select:hover { background: rgba(0, 240, 255, 0.1); }
+    </style>
+</head>
+<body>
+    <div id="bg-login" class="bg-layer animate-bg"></div>
+    <div id="bg-chat" class="bg-layer animate-bg"></div>
+
+    <div id="auth-overlay">
+        <div id="login-form" class="auth-card">
+            <h2>SafeDrop</h2>
+            <p style="color:var(--text-muted); font-size:13px; margin-bottom:35px; font-family:'Inter';">End-to-End Encrypted File Exchange</p>
+            <input type="text" id="lUser" placeholder="Identity"><input type="password" id="lPass" placeholder="Access Key">
+            <button class="btn" style="width:100%" onclick="login()">Connect</button>
+            <div style="margin-top:25px; font-size:12px; color:var(--text-muted); cursor:pointer;" onclick="toggleAuth()">Create New Identity</div>
+        </div>
+        <div id="reg-form" class="auth-card hidden">
+            <h2>New Identity</h2>
+            <p style="color:var(--text-muted); font-size:13px; margin-bottom:35px; font-family:'Inter';">Generate Cryptographic Keys</p>
+            <input type="text" id="rUser" placeholder="Set Identity"><input type="password" id="rPass" placeholder="Set Access Key">
+            <button class="btn" style="width:100%" onclick="register()">Generate</button>
+            <div style="margin-top:25px; font-size:12px; color:var(--text-muted); cursor:pointer;" onclick="toggleAuth()">Cancel</div>
+        </div>
+    </div>
+
+    <div id="dashboard">
+        <div class="sidebar">
+            <div class="sidebar-header"><span style="color:var(--primary); font-size:18px;">●</span> SECURE LINKS</div>
+            <div class="user-list" id="contact-list"></div>
+            <div style="padding:20px; border-top:var(--border); background:rgba(0,0,0,0.2);">
+                <div style="font-size:11px; color:var(--text-muted); margin-bottom:5px; font-family:'JetBrains Mono';">IDENTITY_HASH</div>
+                <div id="myId" style="color:white; font-weight:600; margin-bottom:15px; font-family:'Inter';">...</div>
+                <button class="btn" style="background:rgba(255, 255, 255, 0.05); color:white; width:100%; font-size:11px; box-shadow:none;" onclick="logout()">DISCONNECT</button>
+            </div>
+        </div>
+
+        <div class="chat-area">
+            <div id="empty-state" style="height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-muted);">
+                <div style="font-size:14px; letter-spacing:1px; opacity: 0.5;">SELECT A SECURE CHANNEL</div>
+            </div>
+
+            <div id="active-chat" class="hidden" style="display:flex; flex-direction:column; height:100%;">
+                <div class="chat-header">
+                    <div class="header-inner">
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <div style="width:8px; height:8px; background:var(--primary); border-radius:50%; box-shadow:0 0 10px var(--primary);"></div>
+                            <div style="font-weight:600; font-size:16px;" id="chatTitle">User</div>
+                        </div>
+                        <div style="font-size:11px; color:var(--primary); background:rgba(0, 240, 255, 0.1); padding:6px 12px; border-radius:20px; font-family:'JetBrains Mono';">ENCRYPTED</div>
+                    </div>
+                </div>
+
+                <div class="messages" id="msg-container"></div>
+
+                <div class="input-bar">
+                    <div class="input-inner">
+                        <div class="icon-btn" onclick="document.getElementById('fIn').click()">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                        </div>
+                        <input type="file" id="fIn" hidden onchange="showFilePreview()">
+
+                        <div class="input-wrapper">
+                            <div style="display:flex; gap:10px; align-items:center; margin-bottom: 5px;">
+                                <div id="file-badge">
+                                    <span id="file-name-display">file.jpg</span>
+                                    <span class="remove-file" onclick="clearFile()">✕</span>
+                                </div>
+                                <select id="burn-select" style="display:none;">
+                                    <option value="1|24">👁️ View Once (Default)</option>
+                                    <option value="100|1">🔥 1 Hour Burn</option>
+                                    <option value="100|24">⏳ 1 Day Burn</option>
+                                    <option value="10000|8760">💾 Forever (1 Year)</option>
+                                </select>
+                            </div>
+                            <input type="text" id="msg-input" placeholder="Type a secure message..." style="margin:0;" onkeypress="if(event.key==='Enter') send()">
+                        </div>
+                        <button class="btn" style="width:auto; padding:0 20px;" onclick="send()">SEND</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let TOKEN = localStorage.getItem('token');
+        let USER = localStorage.getItem('user');
+        let TARGET = null;
+        let POLL = null;
+
+        if(TOKEN) {
+            document.getElementById('auth-overlay').classList.add('hidden');
+            document.getElementById('bg-login').style.opacity = '0';
+            document.getElementById('bg-chat').style.opacity = '1';
+            document.getElementById('dashboard').style.display = 'flex';
+            document.getElementById('dashboard').style.opacity = '1';
+            initApp();
+        }
+
+        function toggleAuth() {
+            document.getElementById('login-form').classList.toggle('hidden');
+            document.getElementById('reg-form').classList.toggle('hidden');
+            document.querySelectorAll('input').forEach(i => i.value = '');
+        }
+
+        async function login() {
+            const u = document.getElementById('lUser').value;
+            const p = document.getElementById('lPass').value;
+            const fd = new FormData(); fd.append('username', u); fd.append('password', p);
+            try {
+                const res = await fetch('/token', { method: 'POST', body: fd });
+                if(!res.ok) throw new Error();
+                const data = await res.json();
+                TOKEN = data.access_token; USER = u;
+                localStorage.setItem('token', TOKEN); localStorage.setItem('user', USER);
+                document.getElementById('auth-overlay').style.opacity = '0';
+                document.getElementById('bg-login').style.opacity = '0';
+                document.getElementById('bg-chat').style.opacity = '1';
+                setTimeout(() => {
+                    document.getElementById('auth-overlay').classList.add('hidden');
+                    document.getElementById('dashboard').style.display = 'flex';
+                    void document.getElementById('dashboard').offsetWidth;
+                    document.getElementById('dashboard').style.opacity = '1';
+                    initApp();
+                }, 500);
+            } catch(e) { alert("Invalid Credentials"); }
+        }
+
+        async function register() {
+            const u = document.getElementById('rUser').value;
+            const p = document.getElementById('rPass').value;
+            const fd = new FormData(); fd.append('username', u); fd.append('password', p);
+            try {
+                const r = await fetch('/register', { method: 'POST', body: fd });
+                if(!r.ok) throw new Error();
+                alert("Identity Created."); toggleAuth();
+            } catch(e) { alert("Username taken"); }
+        }
+
+        function logout() { localStorage.clear(); location.reload(); }
+        function initApp() { document.getElementById('myId').innerText = USER; loadContacts(); if(POLL) clearInterval(POLL); POLL = setInterval(() => { if(TARGET) loadChat(TARGET); }, 2000); }
+
+        async function loadContacts() {
+            try {
+                const res = await fetch(`/users?token=${TOKEN}`);
+                if(res.status === 401) return logout();
+                const users = await res.json();
+                const list = document.getElementById('contact-list'); list.innerHTML = "";
+                users.forEach(u => {
+                    if(u.username === USER) return;
+                    const div = document.createElement('div'); div.className = 'user-row';
+                    div.innerHTML = `<div class="avatar">${u.username[0].toUpperCase()}</div> <div>${u.username}</div>`;
+                    div.onclick = () => selectUser(u.username, div);
+                    list.appendChild(div);
+                });
+            } catch(e) {}
+        }
+
+        function selectUser(u, el) {
+            TARGET = u;
+            document.querySelectorAll('.user-row').forEach(x => x.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('active-chat').classList.remove('hidden');
+            document.getElementById('chatTitle').innerText = u;
+            loadChat(u);
+        }
+
+        function showFilePreview() {
+            const f = document.getElementById('fIn').files[0];
+            if(f) {
+                document.getElementById('file-badge').style.display = 'flex';
+                document.getElementById('file-name-display').innerText = f.name;
+                document.getElementById('burn-select').style.display = 'block';
+            }
+        }
+
+        function clearFile() {
+            document.getElementById('fIn').value = "";
+            document.getElementById('file-badge').style.display = 'none';
+            document.getElementById('burn-select').style.display = 'none';
+        }
+
+        async function send() {
+            const txt = document.getElementById('msg-input').value;
+            const f = document.getElementById('fIn').files[0];
+            if(!txt && !f) return;
+
+            const fd = new FormData();
+            fd.append('token', TOKEN); fd.append('receiver', TARGET); fd.append('text', txt);
+            if(f) {
+                fd.append('file', f);
+                const val = document.getElementById('burn-select').value;
+                const [limit, hours] = val.split('|');
+                fd.append('max_downloads', limit);
+                fd.append('expiry_hours', hours);
+            }
+            document.getElementById('msg-input').value = ""; clearFile();
+            await fetch('/send', { method: 'POST', body: fd });
+            loadChat(TARGET);
+        }
+
+        async function loadChat(target) {
+            const res = await fetch(`/history/${target}?token=${TOKEN}`);
+            const msgs = await res.json();
+            const box = document.getElementById('msg-container');
+            if(box.childElementCount === msgs.length) return;
+
+            box.innerHTML = msgs.map(m => {
+                const isMe = m.sender === USER;
+                let content = m.content || "";
+                if(m.file_id) {
+                    const isBurned = m.file_id === "BURNED";
+                    const opacity = isBurned ? 0.5 : 1;
+                    const action = isBurned ? '' : `onclick="verifyDownload('${m.id}', '${m.sender}', ${isBurned})"`;
+                    const status = isBurned ? "FILE_BURNED" : "ENCRYPTED_FILE";
+                    const color = isBurned ? 'var(--danger)' : 'var(--primary)';
+                    content += `
+                    <div class="file-card" style="opacity:${opacity}; border-left:3px solid ${color}" ${action}>
+                        <div style="font-size:24px">📄</div>
+                        <div>
+                            <div style="font-weight:600; font-size:13px;">${m.filename}</div>
+                            <div style="font-size:10px; opacity:0.7; font-family:'JetBrains Mono'">${status}</div>
+                        </div>
+                    </div>`;
+                }
+                return `<div class="msg-row ${isMe ? 'sent' : 'recv'}"><div class="msg-bubble">${content}</div></div>`;
+            }).join('');
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function verifyDownload(id, sender, isBurned) {
+            if(isBurned) return;
+            
+            if(sender === USER) {
+                alert("🔒 SAFETY PROTOCOL:\n\nYou are the Sender. You cannot download this file because it might be a 'View Once' payload.\n\nDownloading it would burn the file before the recipient sees it.");
+                return;
+            }
+            
+            download(id);
+        }
+
+        async function download(id) {
+            try {
+                const res = await fetch(`/download/${id}?token=${TOKEN}`);
+                if(res.status !== 200) throw new Error();
+                
+                const blob = await res.blob();
+                
+                const disp = res.headers.get('Content-Disposition');
+                let fn = "file.bin";
+
+                if (disp) {
+                    if (disp.includes("filename*=UTF-8''")) {
+                        fn = decodeURIComponent(disp.split("filename*=UTF-8''")[1]);
+                    } else if (disp.includes("filename=")) {
+                        fn = disp.split('filename=')[1].replace(/['"]/g, '');
+                    }
+                }
+                
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a'); 
+                a.href = url; 
+                a.download = fn; 
+                document.body.appendChild(a); 
+                a.click(); 
+                a.remove();
+                
+                setTimeout(() => loadChat(TARGET), 500);
+            } catch(e) { alert("File integrity error or burned."); }
+        }
+
+    </script>
+</body>
+</html>

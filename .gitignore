@@ -1,0 +1,31 @@
+# Secrets (NEVER COMMIT THESE)
+.env
+
+# Database
+securechat.db
+
+# Compiled Binaries & Objects
+server
+client
+safedrop
+*.o
+*.out
+*.dSYM/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Runtime/Test Files (Don't clutter the repo)
+*.enc
+*.meta
+*.bin
+me2.jpeg
+me2_restored.jpeg
+test_copy.jpeg
+*.png
+*.jpg
+*.pdf
+
+# OS Files
+.DS_Store
