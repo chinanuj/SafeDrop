@@ -1,39 +1,72 @@
-# SafeDrop - Secure Ephemeral File Exchange
+# SafeDrop – Secure Ephemeral File Exchange System
 
-SafeDrop is a hybrid C++/Python secure file transfer system designed for high-performance, ephemeral messaging. It features a custom binary TCP protocol, AES-256 encryption, and a strict "Burn-on-Read" mechanism handled at the file-system level.
+**SafeDrop** is a high-performance, hybrid secure file transfer system designed for ephemeral messaging ("Burn-on-Read"). It leverages a **C++ Core** for low-level socket management, encryption, and secure file deletion, bridged with a **Python FastAPI** layer for modern web access and user authentication.
 
-## 🚀 Features
+## 🚀 Key Features
 
-* **Hybrid Architecture:** High-performance C++ core for encryption/IO, bridged with a Python FastAPI web layer.
-* **Custom Binary Protocol:** Engineered a raw TCP header protocol (`0xBEEF` magic bytes + structured metadata) to prevent protocol collisions and ensure data integrity.
-* **AES-256 Encryption:** Files are encrypted specifically for each transaction using OpenSSL with unique Initialization Vectors (IVs).
-* **Burn-on-Read:** Implements secure deletion logic in C++ that physically removes files from the disk immediately after the download limit or expiry time is reached.
-* **Concurrent Handling:** Multi-threaded socket server capable of handling simultaneous upload/download streams.
+  * **Hybrid Architecture:** Combines the raw performance of **C++17** for the heavy lifting (encryption, IO) with the flexibility of **Python 3.11** for the REST API and business logic.
+  * **Custom Binary Protocol:** Implements a specialized TCP packet structure (`Magic Bytes` + `Metadata` + `Payload`) to ensure data integrity and prevent file header corruption (e.g., fixing PNG/PDF header collisions).
+  * **AES-256 Encryption:** Every file is encrypted server-side using **OpenSSL (EVP Interface)** with unique, randomly generated Initialization Vectors (IVs) per transaction.
+  * **Burn-on-Read Logic:** Files are not just "hidden"—they are physically removed from the disk (`std::remove`) by the C++ core immediately after the download limit or expiration timer is reached.
+  * **Zero-Knowledge Downloads:** The Python API streams encrypted data directly from the Core to the Client without caching unencrypted versions on disk.
 
-## 🛠️ Tech Stack
+## 🛠️ Technology Stack
 
-* **Core:** C++17 (OpenSSL, Native Sockets)
-* **API:** Python 3.11 (FastAPI, Uvicorn, SQLAlchemy)
-* **Database:** SQLite
-* **Protocol:** Custom TCP Binary Packets
+  * **Core Server:** C++17, OpenSSL, Native POSIX Sockets.
+  * **Web API:** Python (FastAPI), Uvicorn, SQLAlchemy, Python-Jose (JWT).
+  * **Database:** SQLite (Relational metadata storage).
+  * **Frontend:** HTML5, CSS3 (Glassmorphism UI), Vanilla JavaScript.
 
-## ⚙️ Setup & Installation
+## ⚙️ Architecture
 
-### 1. Prerequisites
-* C++ Compiler (`g++` or `clang`)
-* OpenSSL Development Libraries
-* Python 3.9+
+The system consists of two independent microservices communicating over a local TCP socket:
 
-### 2. Compile the Core Server
+1.  **The Vault (C++):** Listens on port `8080`. It handles raw bytes, performs AES-256 encryption/decryption, and enforces the "Burn" logic.
+2.  **The Gateway (Python):** Listens on port `3000`. It handles User Auth (Login/Register), serves the UI, and proxies file streams to The Vault.
+
+<!-- end list -->
+
+```mermaid
+graph LR
+    User[Web Client] -- HTTP/HTTPS --> API[Python FastAPI :3000]
+    API -- Custom TCP Protocol --> Core[C++ Vault :8080]
+    Core -- AES-256 --> Disk[(Encrypted Storage)]
+```
+
+## 🔧 Installation & Setup
+
+### 1\. Prerequisites
+
+  * **C++ Compiler:** `g++` (supporting C++17) or `clang`.
+  * **OpenSSL:** Development libraries (`libssl-dev` or `openssl@3` on macOS).
+  * **Python:** Version 3.9+.
+
+### 2\. Compile the C++ Core
+
+You can use `cmake` (recommended) or `g++` directly.
+
+**Option A: Using CMake**
+
 ```bash
-# For macOS (Apple Silicon with Homebrew OpenSSL):
+mkdir build && cd build
+cmake ..
+make
+mv server ../  # Move binary to root
+```
+
+**Option B: Manual Compilation (macOS Apple Silicon)**
+
+```bash
 arch -x86_64 g++ -std=c++17 src/Server.cpp src/FileHandler.cpp src/CryptoHandler.cpp -o server -I"$(brew --prefix openssl@3)/include" -L"$(brew --prefix openssl@3)/lib" -lssl -lcrypto
+```
 
-# For Linux/Standard:
+**Option C: Manual Compilation (Linux)**
+
+```bash
 g++ -std=c++17 src/Server.cpp src/FileHandler.cpp src/CryptoHandler.cpp -o server -lssl -lcrypto
-````
+```
 
-### 3\. Install Python Dependencies
+### 3\. Setup Python Environment
 
 ```bash
 pip install fastapi uvicorn python-dotenv sqlalchemy passlib python-jose[cryptography] argon2-cffi python-multipart
@@ -41,10 +74,10 @@ pip install fastapi uvicorn python-dotenv sqlalchemy passlib python-jose[cryptog
 
 ### 4\. Configuration
 
-Create a `.env` file in the root directory:
+Create a `.env` file in the project root:
 
 ```ini
-SECRET_KEY="your_secret_key_here"
+SECRET_KEY="your_super_secret_jwt_key"
 ALGORITHM="HS256"
 CPP_SERVER_IP="127.0.0.1"
 CPP_SERVER_PORT=8080
@@ -52,32 +85,33 @@ CPP_SERVER_PORT=8080
 
 ## 🏃‍♂️ Usage
 
-1.  **Start the Core Server:**
+1.  **Start the C++ Vault:**
+
     ```bash
     ./server
     ```
-2.  **Start the API:**
+
+    *Output:* `>>> SafeDrop Core V3 (Magic Bytes Enabled)...`
+
+2.  **Start the Python API (in a new terminal):**
+
     ```bash
     python3 api.py
     ```
-3.  **Access the UI:**
-    Open `http://localhost:3000` in your browser.
 
-## 🛡️ Architecture Overview
+    *Output:* `Uvicorn running on http://0.0.0.0:3000`
 
-[Client] --(HTTP/JSON)--\> [Python FastAPI] --(Custom TCP Protocol)--\> [C++ Core Server]
-|
-[File System]
-(Encrypted Storage)
+3.  **Access the Interface:**
+    Open your browser and navigate to `http://localhost:3000`.
 
-````
+## 🛡️ Security Protocol (V3)
 
-### Step 4: Create `requirements.txt`
-Run this command to generate your dependency list so others can install it easily:
+The system uses a custom header to prevent attacks and data corruption:
 
-```bash
-pip freeze > requirements.txt
-````
-
-*(Ideally, you manually clean this list to only include `fastapi`, `uvicorn`, `python-dotenv`, `sqlalchemy`, `passlib`, `python-jose`, `argon2-cffi`, `python-multipart` to keep it clean, but `pip freeze` is fine for now).*
-
+| Byte Offset | Size | Field | Description |
+| :--- | :--- | :--- | :--- |
+| 0 | 1 | Command | `U` (Upload) or `D` (Download) |
+| 1-2 | 2 | Magic Bytes | `0xBEEF` (Safety Check) |
+| 3-6 | 4 | Limit | Max download count (Big Endian) |
+| 7-10 | 4 | Expiry | Time-to-live in seconds (Big Endian) |
+| 11+ | N | Payload | File Extension + Content |
