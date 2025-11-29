@@ -104,6 +104,17 @@ CPP_SERVER_PORT=8080
 3.  **Access the Interface:**
     Open your browser and navigate to `http://localhost:3000`.
 
+## 📸 Web Interface Screenshots
+
+Here is a glimpse of the SafeDrop user interface.
+
+**Login Screen**
+<br>
+https://github.com/chinanuj/SafeDrop/blob/5c59d3dafeb3ed6291e95abc4a9396cf029e69ac/docs/images/login_screenshot.png
+**Secure Chat & File Drop**
+<br>
+https://github.com/chinanuj/SafeDrop/blob/5c59d3dafeb3ed6291e95abc4a9396cf029e69ac/docs/images/chat_screenshot.png
+
 ## 🛡️ Security Protocol (V3)
 
 The system uses a custom header to prevent attacks and data corruption:
